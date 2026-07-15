@@ -1452,7 +1452,7 @@ tr:hover td { background: rgba(255, 255, 255, 0.015); }
               </svg>
               <div class="cc-center">
                 <div class="cc-time" id="ccTime">15:00</div>
-                <div class="cc-sublbl">sisa</div>
+                <div class="cc-sublbl" id="ccSubLbl">sisa</div>
               </div>
             </div>
             <div class="cc-stlbl" id="ccSt">BATAS IZIN</div>
@@ -2005,6 +2005,7 @@ function tickCD() {
   if (rem > 0) {
     var mm = Math.floor(rem / 60000), ss = Math.floor((rem % 60000) / 1000);
     setText("ccTime", pad(mm) + ":" + pad(ss));
+    setText("ccSubLbl", "sisa");
     arcEl.style.strokeDashoffset = String(CIRC * (1 - rem / BATAS_MS));
     if (rem < 5 * 60 * 1000) {
       setCC("cc-warn"); setText("ccSt", "HAMPIR HABIS");
@@ -2018,6 +2019,7 @@ function tickCD() {
     var over = Math.abs(rem);
     var mm = Math.floor(over / 60000), ss = Math.floor((over % 60000) / 1000);
     setText("ccTime", "+" + pad(mm) + ":" + pad(ss));
+    setText("ccSubLbl", "telat");
     arcEl.style.strokeDashoffset = "0";
     setCC("cc-over"); setText("ccSt", "TERLAMBAT");
     setText("ccTitle", "BATAS TERLAMPAUI!"); setText("ccMsg", "Segera kembali ke kantor sekarang!");
@@ -2027,16 +2029,27 @@ function tickCD() {
   renderLiveKeluar();
 }
 function markTelat(overMs) {
-  var key = "l99_tk_" + CU.id + "_" + S.waktuKeluarMs;
-  if (lsGet(key)) return;
-  lsSet(key, "1");
   var dur = fmtDur(overMs);
-  var found = false;
-  for (var i = 0; i < TELAT.length; i++) { if (TELAT[i].keluar === S.waktuKeluar) { found = true; break; } }
-  if (!found) {
-    TELAT.push({ uid:CU.id, nama:CU.nama, keluar:S.waktuKeluar, durasi:dur, overMs:overMs });
-    saveTelat(); renderTelatCard(); renderHistoryMain();
+  var foundIdx = -1;
+  for (var i = 0; i < TELAT.length; i++) {
+    if (TELAT[i].keluar === S.waktuKeluar) {
+      foundIdx = i;
+      break;
+    }
   }
+  if (foundIdx === -1) {
+    TELAT.push({ uid: CU.id, nama: CU.nama, keluar: S.waktuKeluar, durasi: dur, overMs: overMs });
+  } else {
+    TELAT[foundIdx].durasi = dur;
+    TELAT[foundIdx].overMs = overMs;
+  }
+  
+  var key = "l99_tk_" + CU.id + "_" + S.waktuKeluarMs;
+  lsSet(key, "1");
+  
+  saveTelat();
+  renderTelatCard();
+  renderHistoryMain();
 }
 
 // =========================================
@@ -2197,6 +2210,11 @@ function aksKeluar() {
 function aksMasuk() {
   if (!S.sedangDiluar) { toast("Kamu belum tercatat keluar.", "info"); return; }
   var t = nowStr();
+  var elapsed = Date.now() - S.waktuKeluarMs;
+  if (elapsed > BATAS_MS) {
+    var finalOverMs = elapsed - BATAS_MS;
+    markTelat(finalOverMs);
+  }
   S.sedangDiluar = false;
   S.history.push({ type:"masuk", time:t });
   saveState(); updateUI(); stopCD(); saveSession(); renderLiveKeluar();
@@ -2462,16 +2480,27 @@ function renderHistAdmin() {
   else { var info2 = mkEl("div","",totalRows+" aktivitas dari "+Object.keys(USERS).length+" staff"); info2.style.cssText="font-size:.78rem;color:var(--t2);font-weight:600;margin-bottom:.8rem"; el.insertBefore(info2, el.firstChild); el.appendChild(frag); }
 }
 function exportAllData() {
-  var csv = "UserID,Nama,Role,Tipe,Waktu,Tanggal\n", rows = 0;
+  var csv = "UserID,Nama,Role,Tipe,Waktu,Keterlambatan,Tanggal\n", rows = 0;
   for (var uid in USERS) {
     var nm = lsGet("name_"+uid)||USERS[uid].nama;
     var role = lsGet("role_"+uid)||USERS[uid].role;
     var r = lsGet(sk(uid)); if (!r) continue;
     try {
       var d = JSON.parse(r); if (!d.history) continue;
+      var telatRaw = lsGet("l99_telat_" + uid + "_" + todayStr());
+      var userTelat = telatRaw ? JSON.parse(telatRaw) : [];
       for (var i = 0; i < d.history.length; i++) {
         var h = d.history[i];
-        csv += uid + ',' + nm + ',' + role + ',' + h.type + ',' + h.time + ',' + (d.tanggal||'') + '\n'; rows++;
+        var delayStr = "";
+        if (h.type === "keluar") {
+          for (var j = 0; j < userTelat.length; j++) {
+            if (userTelat[j].keluar === h.time) {
+              delayStr = "+" + userTelat[j].durasi;
+              break;
+            }
+          }
+        }
+        csv += uid + ',' + nm + ',' + role + ',' + h.type + ',' + h.time + ',' + delayStr + ',' + (d.tanggal||'') + '\n'; rows++;
       }
     } catch(e) {}
   }
