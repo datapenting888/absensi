@@ -1497,11 +1497,6 @@ tr:hover td { background: rgba(255, 255, 255, 0.015); }
           <div class="q-foot"><span>Terpakai: <b id="qT">0</b></span><span>Kuota: <b id="qK">4/hari</b></span></div>
         </div>
 
-        <div class="card">
-          <div class="card-head">Riwayat Hari Ini <span class="card-cnt" id="hCnt"></span></div>
-          <div class="hlist" id="hList"></div>
-        </div>
-
         <div class="lk-card">
           <div class="lk-head"><span class="lk-dot"></span>Sedang Di Luar Kantor</div>
           <div class="lk-list" id="lkList"></div>
@@ -1510,7 +1505,7 @@ tr:hover td { background: rgba(255, 255, 255, 0.015); }
 
       <!-- PANEL RIWAYAT -->
       <div class="panel" id="panel-riwayat">
-        <div class="ph"><div class="pt">Riwayat Absensi</div><div class="ps">Catatan izin keluar, masuk, dan pelanggaran batas waktu hari ini</div></div>
+        <div class="ph"><div class="pt">Riwayat Absensi</div><div class="ps">Catatan izin keluar dan masuk seluruh staff hari ini</div></div>
         <div class="pcnt">
           <div class="rw-summary">
             <div class="rw-box"><div class="rw-num" id="rSumIzin">0</div><div class="rw-lbl">Total Izin</div></div>
@@ -2056,7 +2051,6 @@ function markTelat(overMs) {
   
   saveTelat();
   renderTelatCard();
-  renderHistoryMain();
 }
 
 // =========================================
@@ -2182,32 +2176,6 @@ function updateUI() {
       bk.classList.remove("disabled"); bm.classList.remove("ready"); bm.classList.add("disabled");
     }
   }
-  renderHistoryMain();
-}
-
-function renderHistoryMain() {
-  var hl = g("hList"); if (!hl) return;
-  hl.innerHTML = "";
-  if (!S.history.length) {
-    setText("hCnt", ""); hl.appendChild(mkEl("div", "hempty", "Belum ada aktivitas")); return;
-  }
-  setText("hCnt", S.history.length + " aktivitas");
-  var rev = S.history.slice().reverse();
-  for (var i = 0; i < rev.length; i++) {
-    var h = rev[i];
-    var late = null;
-    if (h.type === "keluar") {
-      for (var j = 0; j < TELAT.length; j++) { if (TELAT[j].uid === CU.id && TELAT[j].keluar === h.time) { late = TELAT[j]; break; } }
-    }
-    var row = mkEl("div", late ? "hitem hlate" : "hitem");
-    var dot = mkEl("div", "hdot " + (h.type === "keluar" ? "hdot-k" : "hdot-m"));
-    var txt = mkEl("span", "htxt", h.type === "keluar" ? "Izin Keluar" : "Kembali ke Kantor");
-    row.appendChild(dot); row.appendChild(txt);
-    if (late) { var dur = mkEl("span", "hdur", "+" + late.durasi); row.appendChild(dur); }
-    var tm = mkEl("span", "htm", h.time);
-    row.appendChild(tm);
-    hl.appendChild(row);
-  }
 }
 
 // =========================================
@@ -2241,50 +2209,68 @@ function aksMasuk() {
 // =========================================
 function renderRiwayat() {
   var totalIzin = 0, totalTelat = 0, totalTepat = 0;
-  for (var i = 0; i < S.history.length; i++) { if (S.history[i].type === "keluar") totalIzin++; }
-  var myTelat = TELAT.filter(function(t) { return t.uid === CU.id; });
-  totalTelat = myTelat.length;
+  var allActs = [], allTelat = [];
+  for (var uid in USERS) {
+    var nm = lsGet("name_"+uid)||USERS[uid].nama;
+    var role = lsGet("role_"+uid)||USERS[uid].role;
+    var telatRaw = lsGet("l99_telat_"+uid+"_"+todayStr());
+    var uTelat = [];
+    if (telatRaw) { try { uTelat = JSON.parse(telatRaw); } catch(e) {} }
+    for (var i = 0; i < uTelat.length; i++) allTelat.push(uTelat[i]);
+    var r = lsGet(sk(uid)); if (!r) continue;
+    try {
+      var d = JSON.parse(r);
+      if (d.tanggal !== todayStr() || !d.history) continue;
+      for (var i = 0; i < d.history.length; i++) {
+        var h = d.history[i];
+        if (h.type === "keluar") totalIzin++;
+        var late = null;
+        if (h.type === "keluar") {
+          for (var j = 0; j < uTelat.length; j++) { if (uTelat[j].keluar === h.time) { late = uTelat[j]; break; } }
+        }
+        allActs.push({ nm: nm, role: role, uid: uid, type: h.type, time: h.time, late: late });
+      }
+    } catch(e) {}
+  }
+  totalTelat = allTelat.length;
   totalTepat = totalIzin - totalTelat; if (totalTepat < 0) totalTepat = 0;
   setText("rSumIzin", String(totalIzin));
   setText("rSumTepat", String(totalTepat));
   setText("rSumTelat", String(totalTelat));
 
-  // Aktivitas
+  allActs.sort(function(a,b) { return a.time < b.time ? 1 : (a.time > b.time ? -1 : 0); });
+
+  // Aktivitas semua staff
   var actEl = g("rActList"), badge = g("rActBadge"); if (!actEl) return;
   actEl.innerHTML = "";
-  if (!S.history.length) {
-    actEl.appendChild(mkEl("div", "hempty", "Belum ada aktivitas"));
+  if (!allActs.length) {
+    actEl.appendChild(mkEl("div", "hempty", "Belum ada aktivitas hari ini"));
     if (badge) badge.classList.add("hidden");
   } else {
-    if (badge) { badge.textContent = String(S.history.length); badge.classList.remove("hidden"); }
-    var rev = S.history.slice().reverse();
-    for (var i = 0; i < rev.length; i++) {
-      var h = rev[i];
-      var late = null;
-      if (h.type === "keluar") {
-        for (var j = 0; j < myTelat.length; j++) { if (myTelat[j].keluar === h.time) { late = myTelat[j]; break; } }
-      }
-      var row = mkEl("div", late ? "hitem hlate" : "hitem");
+    if (badge) { badge.textContent = String(allActs.length); badge.classList.remove("hidden"); }
+    for (var i = 0; i < allActs.length; i++) {
+      var h = allActs[i];
+      var row = mkEl("div", h.late ? "hitem hlate" : "hitem");
       var dot = mkEl("div", "hdot " + (h.type === "keluar" ? "hdot-k" : "hdot-m"));
-      var txt = mkEl("span", "htxt", h.type === "keluar" ? "Izin Keluar" : "Kembali ke Kantor");
+      var txt = mkEl("span", "htxt", (h.type === "keluar" ? "Izin Keluar" : "Kembali ke Kantor") + " - " + h.nm + " (" + h.uid + ")");
       row.appendChild(dot); row.appendChild(txt);
-      if (late) { var dur = mkEl("span", "hdur", "+" + late.durasi); row.appendChild(dur); }
+      if (h.late) { var dur = mkEl("span", "hdur", "+" + h.late.durasi); row.appendChild(dur); }
       var tm = mkEl("span", "htm", h.time);
       row.appendChild(tm);
       actEl.appendChild(row);
     }
   }
 
-  // Pelanggaran
+  // Pelanggaran semua staff
   var telEl = g("rTelList"), telBadge = g("rTelBadge"); if (!telEl) return;
   telEl.innerHTML = "";
-  if (!myTelat.length) {
+  if (!allTelat.length) {
     if (telBadge) telBadge.classList.add("hidden");
     telEl.appendChild(mkEl("div", "hempty", "Tidak ada pelanggaran hari ini"));
   } else {
-    if (telBadge) { telBadge.textContent = String(myTelat.length); telBadge.classList.remove("hidden"); }
-    for (var i = 0; i < myTelat.length; i++) {
-      var t = myTelat[i];
+    if (telBadge) { telBadge.textContent = String(allTelat.length); telBadge.classList.remove("hidden"); }
+    for (var i = 0; i < allTelat.length; i++) {
+      var t = allTelat[i];
       var row = mkEl("div", "late-row");
       var av = mkEl("div", "late-av", initials(t.nama));
       var info = mkEl("div", "late-info");
