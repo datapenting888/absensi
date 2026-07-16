@@ -1456,7 +1456,7 @@ tr:hover td { background: rgba(255, 255, 255, 0.015); }
                 <circle class="cc-fill" id="ccArc" cx="50" cy="50" r="43" stroke-dasharray="270.2" stroke-dashoffset="0"/>
               </svg>
               <div class="cc-center">
-                <div class="cc-time" id="ccTime">15:00</div>
+                <div class="cc-time" id="ccTime">20:00</div>
                 <div class="cc-sublbl" id="ccSubLbl">sisa</div>
               </div>
             </div>
@@ -1464,7 +1464,7 @@ tr:hover td { background: rgba(255, 255, 255, 0.015); }
           </div>
           <div class="cc-right">
             <div class="cc-title" id="ccTitle">BATAS WAKTU IZIN</div>
-            <div class="cc-msg" id="ccMsg">Kamu punya 15 menit untuk keluar kantor.</div>
+            <div class="cc-msg" id="ccMsg">Kamu punya 20 menit untuk keluar kantor.</div>
             <div class="cc-who" id="ccWho"></div>
           </div>
         </div>
@@ -1711,7 +1711,7 @@ function saveExtra() {
 var CU = null;
 var S = { terpakai:0, sedangDiluar:false, waktuKeluar:null, waktuKeluarMs:null, history:[] };
 var TELAT = [];
-var BATAS_MS = 15 * 60 * 1000;
+var BATAS_MS = 20 * 60 * 1000;
 var CIRC = 2 * Math.PI * 43; // r=43
 var _cdInt = null;
 
@@ -2014,7 +2014,7 @@ function tickCD() {
       setText("ccTitle", "HAMPIR HABIS!"); setText("ccMsg", "Kurang dari 5 menit! Segera kembali!");
     } else {
       setCC("cc-ok"); setText("ccSt", "BATAS IZIN");
-      setText("ccTitle", "BATAS WAKTU IZIN"); setText("ccMsg", "Kamu punya 15 menit untuk keluar kantor.");
+      setText("ccTitle", "BATAS WAKTU IZIN"); setText("ccMsg", "Kamu punya 20 menit untuk keluar kantor.");
     }
     setText("ccWho", "Keluar pukul " + S.waktuKeluar);
   } else {
