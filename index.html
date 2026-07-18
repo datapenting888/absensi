@@ -1945,6 +1945,13 @@ function fbRemove(key) {
 }
 function refreshActivePanel() {
   if (!CU) return;
+  if (S && S.sedangDiluar && S.waktuKeluarMs) {
+    var keluarDay = new Date(S.waktuKeluarMs).toDateString();
+    if (keluarDay !== todayStr() || (S_LOADED_DAY !== null && S_LOADED_DAY !== todayStr())) {
+      stopCD();
+      loadState(); loadTelat();
+    }
+  }
   showAdminMenus();
   renderLiveKeluar();
   var active = null;
@@ -2235,7 +2242,9 @@ function doLogout() {
 // STATE
 // =========================================
 function sk(uid) { return "l99_s_" + uid; }
+var S_LOADED_DAY = null;
 function loadState() {
+  S_LOADED_DAY = todayStr();
   var raw = lsGet(sk(CU.id));
   if (raw) {
     var d = JSON.parse(raw);
@@ -2282,6 +2291,13 @@ function setCC(cls) {
 }
 function tickCD() {
   if (!S.sedangDiluar) { stopCD(); return; }
+  var keluarDay = S.waktuKeluarMs ? new Date(S.waktuKeluarMs).toDateString() : null;
+  if ((S_LOADED_DAY !== null && S_LOADED_DAY !== todayStr()) || (keluarDay && keluarDay !== todayStr())) {
+    stopCD();
+    loadState(); loadTelat();
+    renderDash();
+    return;
+  }
   var rem = BATAS_MS - (Date.now() - S.waktuKeluarMs);
   var arcEl = g("ccArc");
   if (rem > 0) {
