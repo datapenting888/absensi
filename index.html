@@ -1678,6 +1678,22 @@ tr:hover td { background: rgba(255, 255, 255, 0.015); }
   </div>
 </div>
 
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script>
+  var firebaseConfig = {
+    apiKey: "AIzaSyB59VDLM-jfdKEMSRj4MXSrJLmV9ANBI3o",
+    authDomain: "smb-absensi.firebaseapp.com",
+    databaseURL: "https://smb-absensi-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "smb-absensi",
+    storageBucket: "smb-absensi.firebasestorage.app",
+    messagingSenderId: "895191995230",
+    appId: "1:895191995230:web:4de88eab7231074206f5cf",
+    measurementId: "G-L6QGENG2F"
+  };
+  try { firebase.initializeApp(firebaseConfig); } catch(e) { console.error("Firebase init error:", e); }
+</script>
+
 <script>
 (function() {
 "use strict";
@@ -1716,11 +1732,55 @@ var CIRC = 2 * Math.PI * 43; // r=43
 var _cdInt = null;
 
 // =========================================
-// LOCAL STORAGE
+// LOCAL STORAGE + FIREBASE SYNC
 // =========================================
+var FB_EXCLUDE = ["l99_ses", "l99_clean"];
+var fbDB = null;
+var fbReady = false;
+try { fbDB = firebase.database(); } catch(e) { console.error("Firebase DB error:", e); }
+
+function fbSafeKey(k) { return String(k).replace(/[.#$\[\]\/]/g, "_").replace(/\s+/g, "_"); }
+function fbPut(key, value) {
+  if (!fbDB || FB_EXCLUDE.indexOf(key) !== -1) return;
+  try { fbDB.ref("smb99kv/" + fbSafeKey(key)).set({ k: key, v: value }); } catch(e) {}
+}
+function fbRemove(key) {
+  if (!fbDB || FB_EXCLUDE.indexOf(key) !== -1) return;
+  try { fbDB.ref("smb99kv/" + fbSafeKey(key)).remove(); } catch(e) {}
+}
+function refreshActivePanel() {
+  if (!CU) return;
+  renderLiveKeluar();
+  var active = null;
+  for (var i = 0; i < panelNames.length; i++) {
+    var pe = g("panel-" + panelNames[i]);
+    if (pe && pe.classList.contains("active")) { active = panelNames[i]; break; }
+  }
+  if (active === "dash") renderDash();
+  else if (active === "riwayat") renderRiwayat();
+  else if (active === "monit") renderMonit();
+  else if (active === "staff") renderStaffTable();
+  else if (active === "hist-admin") renderHistAdmin();
+}
+function attachFbSync() {
+  if (!fbDB) return;
+  fbDB.ref("smb99kv").on("value", function(snap) {
+    var val = snap.val() || {};
+    for (var sKey in val) {
+      var entry = val[sKey];
+      if (!entry || typeof entry.k === "undefined") continue;
+      try {
+        if (localStorage.getItem(entry.k) !== entry.v) localStorage.setItem(entry.k, entry.v);
+      } catch(e) {}
+    }
+    fbReady = true;
+    loadExtra();
+    refreshActivePanel();
+  });
+}
 function lsGet(k) { try { return localStorage.getItem(k); } catch(e) { return null; } }
-function lsSet(k, v) { try { localStorage.setItem(k, v); } catch(e) {} }
-function lsDel(k) { try { localStorage.removeItem(k); } catch(e) {} }
+function lsSet(k, v) { try { localStorage.setItem(k, v); } catch(e) {} fbPut(k, v); }
+function lsDel(k) { try { localStorage.removeItem(k); } catch(e) {} fbRemove(k); }
 
 // =========================================
 // AUTO-CLEAN 2 BULAN
@@ -2605,7 +2665,7 @@ function closeConfirm() { g("confirmOvl").classList.remove("open"); }
 // INIT
 // =========================================
 function init() {
-  loadExtra(); autoClean();
+  loadExtra(); autoClean(); attachFbSync();
 
   // Login Screen
   g("btnLogin").addEventListener("click", doLogin);
